@@ -2,56 +2,71 @@
 #   Server Density Inventory
 #
 # Commands:
-#   hubot sd list services
-#   hubot sd list devices
+#   hubot sd list <type>
 #
 # Configuration:
 #   HUBOT_SD_API_TOKEN
 
-apiToken = process.env.HUBOT_SD_API_TOKEN
-baseURL  = 'https://api.serverdensity.io'
+class SDInventory
 
-template = (item, type) =>
-	switch type
-		when 'services'
-			return "\n#{item.name} | #{item.checkMethod} #{item.checkUrl} | [ID: #{item._id}]"
+	apiToken: process.env.HUBOT_SD_API_TOKEN
+	baseURL: 'https://api.serverdensity.io'
 
-		when 'devices'
-			return "\n#{item.name} | #{item.hostname} | [ID: #{item._id}]"
+	constructor: (@robot) ->
+		robot.respond /SD list ([a-z]+)/i, @list
 
-module.exports = (robot) ->
-	robot.respond /SD list (devices|services)/i, (msg) ->
-		type = msg.match[1]
+	list: (msg) =>
+		itemType = msg.match[1].trim()
 
-		msg.send "Fetching #{type}..."
+		msg.send "Fetching #{itemType}..."
 
-		msg
-			.http("#{baseURL}/inventory/#{type}?token=#{apiToken}")
-			.headers
-				"Accept": 'application/json'
-				"content-type": 'application/json'
+		filter =
+			deleted: no
+			type: itemType[0...itemType.length - 1]
 
-			.query
-				deleted: no
+		params =
+			token: @apiToken
+			filter: JSON.stringify(filter)
 
-			.get() (error, response, body) ->
-				if error
-					msg.send "HTTP Error: #{error}"
+		msg.http("#{@baseURL}/inventory/resources")
+		msg.headers
+			"Accept": 'application/json'
+			"content-type": 'application/json'
 
-					return
+		msg.query(params)
 
-				response = JSON.parse(body)
+		msg.get() (error, response, body) ->
+			console.log error
+			if error
+				msg.send "HTTP Error: #{error}"
 
-				if response.errors
-					msg.send "API Error: #{response.errors.type}"
+				return
 
-					return
+			response = JSON.parse(body)
 
-				output = "\n\n" + response.length + " " + type[0...type.length - 1] + "(s)\n"
+			if response.errors
+				msg.send "API Error: #{response.errors.type}"
 
-				for item in response
-					output += template(item, type)
+				return
 
-				output += "\n\n"
+			output = "\n\n" + response.length + " " + itemType[0...itemType.length - 1] + "(s)\n"
 
-				msg.send output
+			for item in response
+				output += @template(item)
+
+			output += "\n\n"
+
+			msg.send output
+
+	template: (item) =>
+		switch item.type
+			when 'service'
+				return "\n#{item.name} | #{item.checkMethod} #{item.checkUrl} | [ID: #{item._id}]"
+
+			when 'device'
+				return "\n#{item.name} | #{item.hostname} | [ID: #{item._id}]"
+
+			else
+				return "\n#{item.name} | [ID: #{item._id}]"
+
+module.exports = (robot) -> new SDInventory(robot)
