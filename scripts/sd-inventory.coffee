@@ -2,7 +2,7 @@
 #   Server Density Inventory
 #
 # Commands:
-#   hubot sd list <type>
+#   /sd list <item type>
 #
 # Configuration:
 #   HUBOT_SD_API_TOKEN
@@ -36,7 +36,6 @@ class SDInventory
 		msg.query(params)
 
 		msg.get() (error, response, body) ->
-			console.log error
 			if error
 				msg.send "HTTP Error: #{error}"
 
@@ -52,21 +51,13 @@ class SDInventory
 			output = "\n\n" + response.length + " " + itemType[0...itemType.length - 1] + "(s)\n"
 
 			for item in response
-				output += @template(item)
+				output += switch item.type
+					when 'service' then "\n#{item.name} | #{item.checkMethod} #{item.checkUrl} | [ID: #{item._id}]"
+					when 'device' then "\n#{item.name} | #{item.hostname} | [ID: #{item._id}]"
+					else "\n#{item.name} | [ID: #{item._id}]"
 
 			output += "\n\n"
 
 			msg.send output
-
-	template: (item) =>
-		switch item.type
-			when 'service'
-				return "\n#{item.name} | #{item.checkMethod} #{item.checkUrl} | [ID: #{item._id}]"
-
-			when 'device'
-				return "\n#{item.name} | #{item.hostname} | [ID: #{item._id}]"
-
-			else
-				return "\n#{item.name} | [ID: #{item._id}]"
 
 module.exports = (robot) -> new SDInventory(robot)
